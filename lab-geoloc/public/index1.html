@@ -1,0 +1,180 @@
+<!-- Primera Versión sin OpenStreetMap -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Consulta Geolocalización OSM</title>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #ffd6e7, #fff0f6);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(255, 182, 193, 0.3);
+      width: 380px;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #c2185b;
+    }
+
+    fieldset {
+      border: none;
+      margin-bottom: 15px;
+      padding: 12px;
+      background: #fff0f6;
+      border-radius: 10px;
+    }
+
+    legend {
+      font-weight: bold;
+      color: #ad1457;
+    }
+
+    label {
+      font-size: 13px;
+      color: #555;
+    }
+
+    input {
+      width: 95%;
+      padding: 8px;
+      margin: 5px 0 10px;
+      border-radius: 8px;
+      border: 1px solid #f8bbd0;
+      outline: none;
+      transition: 0.3s;
+    }
+
+    input:focus {
+      border-color: #ec407a;
+      box-shadow: 0 0 5px rgba(236, 64, 122, 0.3);
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 10px;
+      background: #ec407a;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: #d81b60;
+    }
+
+    .result {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #444;
+    }
+
+    .result strong {
+      color: #ad1457;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: #888;
+      margin-top: 12px;
+    }
+
+    .footer a {
+      color: #ec407a;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+  <h2>Consulta de Geolocalización</h2>
+
+  <fieldset>
+    <legend>Origen</legend>
+    <label>Latitud</label>
+    <input id="oLat" placeholder="Ej: -16.414005"/>
+
+    <label>Longitud</label>
+    <input id="oLon" placeholder="Ej: -71.515773"/>
+
+    <p id="dirOrigen" class="result"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Destino</legend>
+    <label>Latitud</label>
+    <input id="dLat" placeholder="Ej: -16.406547"/>
+
+    <label>Longitud</label>
+    <input id="dLon" placeholder="Ej: -71.553179"/>
+
+    <p id="dirDestino" class="result"></p>
+  </fieldset>
+
+  <button onclick="consultar()">Consultar ruta</button>
+
+  <div class="result">
+    <p>Distancia: <strong><span id="dist"></span></strong> km</p>
+    <p>Tiempo estimado: <strong><span id="tiempo"></span></strong> min</p>
+  </div>
+
+  <div class="footer">
+    Datos © 
+    <a href="https://www.openstreetmap.org/copyright" target="_blank">
+      OpenStreetMap
+    </a>
+  </div>
+</div>
+
+<script>
+  async function consultar() {
+    const [oLat, oLon, dLat, dLon] = [
+      v('oLat'), v('oLon'), v('dLat'), v('dLon')
+    ];
+
+    if (!oLat || !oLon || !dLat || !dLon) {
+      alert('Ingrese todas las coordenadas');
+      return;
+    }
+
+    const gO = await api(`/api/geocode?lat=${oLat}&lon=${oLon}`);
+    const gD = await api(`/api/geocode?lat=${dLat}&lon=${dLon}`);
+
+    set('dirOrigen', gO.direccion || 'No encontrado');
+    set('dirDestino', gD.direccion || 'No encontrado');
+
+    const r = await api(
+      `/api/ruta?oLat=${oLat}&oLon=${oLon}&dLat=${dLat}&dLon=${dLon}`
+    );
+
+    set('dist', r.distancia_km || '-');
+    set('tiempo', r.duracion_min || '-');
+  }
+
+  const api = url => fetch(url).then(r => r.json());
+  const v = id => document.getElementById(id).value;
+  const set = (id, val) => document.getElementById(id).textContent = val;
+</script>
+
+</body>
+</html>

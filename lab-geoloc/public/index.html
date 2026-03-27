@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Geolocalización con Mapa</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #ffd6e7, #fff0f6);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(255,182,193,0.3);
+      width: 420px;
+    }
+
+    h2 {
+      text-align: center;
+      color: #c2185b;
+    }
+
+    fieldset {
+      border: none;
+      background: #fff0f6;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    input {
+      width: 95%;
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 8px;
+      border: 1px solid #f8bbd0;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #ec407a;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    #map {
+      height: 300px;
+      margin-top: 15px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+  <h2>Geolocalización</h2>
+
+  <fieldset>
+    <legend>Origen</legend>
+    <input id="oLat" placeholder="Latitud"/>
+    <input id="oLon" placeholder="Longitud"/>
+    <p id="dirOrigen"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Destino</legend>
+    <input id="dLat" placeholder="Latitud"/>
+    <input id="dLon" placeholder="Longitud"/>
+    <p id="dirDestino"></p>
+  </fieldset>
+
+  <button onclick="consultar()">Consultar ruta</button>
+
+  <p>Distancia: <span id="dist"></span> km</p>
+  <p>Tiempo: <span id="tiempo"></span> min</p>
+
+  <div id="map"></div>
+</div>
+
+<script>
+let map = L.map('map').setView([-16.4, -71.53], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+let markerO, markerD, routeLayer;
+
+async function consultar() {
+  const [oLat, oLon, dLat, dLon] = [
+    v('oLat'), v('oLon'), v('dLat'), v('dLon')
+  ];
+
+  const gO = await api(`/api/geocode?lat=${oLat}&lon=${oLon}`);
+  const gD = await api(`/api/geocode?lat=${dLat}&lon=${dLon}`);
+
+  set('dirOrigen', gO.direccion || '');
+  set('dirDestino', gD.direccion || '');
+
+  const r = await api(
+    `/api/ruta?oLat=${oLat}&oLon=${oLon}&dLat=${dLat}&dLon=${dLon}`
+  );
+
+  set('dist', r.distancia_km);
+  set('tiempo', r.duracion_min);
+
+  if (markerO) map.removeLayer(markerO);
+  if (markerD) map.removeLayer(markerD);
+  if (routeLayer) map.removeLayer(routeLayer);
+
+  markerO = L.marker([oLat, oLon]).addTo(map);
+  markerD = L.marker([dLat, dLon]).addTo(map);
+
+  routeLayer = L.geoJSON(r.geometry).addTo(map);
+
+  map.fitBounds(routeLayer.getBounds());
+}
+
+const api = url => fetch(url).then(r => r.json());
+const v = id => document.getElementById(id).value;
+const set = (id, val) => document.getElementById(id).textContent = val;
+</script>
+
+</body>
+</html>
