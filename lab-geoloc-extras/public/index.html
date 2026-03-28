@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Geolocalización con Mapa</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #ffd6e7, #fff0f6);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(255, 182, 193, 0.3);
+      width: 450px;
+    }
+
+    h2 {
+      text-align: center;
+      color: #c2185b;
+    }
+
+    fieldset {
+      border: none;
+      background: #fff0f6;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    legend {
+      font-weight: bold;
+    }
+
+    input {
+      width: 95%;
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 8px;
+      border: 1px solid #f8bbd0;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #ec407a;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 5px;
+      margin-bottom: 10px;
+    }
+
+    #map {
+      height: 300px;
+      margin-top: 15px;
+      border-radius: 10px;
+    }
+
+    #historial {
+      margin-top: 15px;
+      background: #fff0f6;
+      padding: 10px;
+      border-radius: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .hist-item {
+      background: #fce4ec;
+      border-radius: 8px;
+      padding: 8px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .hist-btn {
+      padding: 4px 8px;
+      background: #c2185b;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2>Geolocalización</h2>
+
+    <fieldset>
+      <legend>Origen</legend>
+      <input id="oLat" placeholder="Latitud" />
+      <input id="oLon" placeholder="Longitud" />
+      <p><strong>Nombre:</strong> <span id="dirOrigen"></span></p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Destino</legend>
+      <input id="dLat" placeholder="Latitud" />
+      <input id="dLon" placeholder="Longitud" />
+      <p><strong>Nombre:</strong> <span id="dirDestino"></span></p>
+    </fieldset>
+
+    <button onclick="consultar()">Consultar ruta</button>
+
+    <!-- FILTRO POR FECHA -->
+    <fieldset>
+      <legend>Filtrar historial</legend>
+      <input type="date" id="fechaFiltro" />
+      <button onclick="cargarHistorial()">Filtrar</button>
+    </fieldset>
+
+    <p><strong>Distancia:</strong> <span id="dist"></span> km</p>
+    <p><strong>Tiempo:</strong> <span id="tiempo"></span> min</p>
+
+    <div id="map"></div>
+
+    <div id="historial">
+      <h4>Historial de búsquedas:</h4>
+      <div id="histList"></div>
+    </div>
+  </div>
+
+  <script>
+    let map = L.map('map').setView([-16.4, -71.53], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+    let markerO, markerD, routeLayer;
+
+    // ── CONSULTAR RUTA ──
+    async function consultar() {
+      const [oLat, oLon, dLat, dLon] = [v('oLat'), v('oLon'), v('dLat'), v('dLon')];
+      if (!oLat || !oLon || !dLat || !dLon) { alert('Completa todas las coordenadas'); return; }
+
+      // Obtener nombres de lugares
+      const gO = await api(`/api/geocode?lat=${oLat}&lon=${oLon}`);
+      const gD = await api(`/api/geocode?lat=${dLat}&lon=${dLon}`);
+      set('dirOrigen', gO.direccion || '');
+      set('dirDestino', gD.direccion || '');
+
+      const r = await api(`/api/ruta?oLat=${oLat}&oLon=${oLon}&dLat=${dLat}&dLon=${dLon}`);
+      set('dist', r.distancia_km);
+      set('tiempo', r.duracion_min);
+
+      if (markerO) map.removeLayer(markerO);
+      if (markerD) map.removeLayer(markerD);
+      if (routeLayer) map.removeLayer(routeLayer);
+
+      markerO = L.marker([oLat, oLon]).addTo(map);
+      markerD = L.marker([dLat, dLon]).addTo(map);
+      routeLayer = L.geoJSON(r.geometry).addTo(map);
+      map.fitBounds(routeLayer.getBounds());
+    }
+
+    // ── CARGAR HISTORIAL ──
+    async function cargarHistorial() {
+      const fecha = document.getElementById('fechaFiltro').value;
+      let url = '/api/historial';
+      if (fecha) url += `?fecha=${fecha}`;
+
+      const datos = await api(url);
+      const lista = document.getElementById('histList');
+      lista.innerHTML = '';
+
+      datos.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'hist-item';
+        div.innerHTML = `
+          <strong>Origen:</strong> ${item.origen} <br>
+          <strong>Destino:</strong> ${item.destino} <br>
+          <strong>Distancia:</strong> ${item.distancia_km} km, <strong>Tiempo:</strong> ${item.duracion_min} min <br>
+          <strong>Fecha:</strong> ${new Date(item.fecha).toLocaleString()} <br>
+          <button class="hist-btn" onclick="rellenarRuta(${idx})">Ver ruta</button>
+        `;
+        lista.appendChild(div);
+      });
+
+      window.historialDatos = datos;
+    }
+
+    // ── RE LLENAR RUTA DESDE HISTORIAL ──
+    function rellenarRuta(idx) {
+      const item = window.historialDatos[idx];
+      const [oLat, oLon] = item.origen.split(',');
+      const [dLat, dLon] = item.destino.split(',');
+      setValue('oLat', oLat); setValue('oLon', oLon);
+      setValue('dLat', dLat); setValue('dLon', dLon);
+      consultar();
+    }
+
+    const api = url => fetch(url).then(r => r.json());
+    const v = id => document.getElementById(id).value;
+    const set = (id, val) => document.getElementById(id).textContent = val;
+    const setValue = (id, val) => document.getElementById(id).value = val;
+  </script>
+</body>
+
+</html>
